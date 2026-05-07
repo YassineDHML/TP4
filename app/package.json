@@ -1,0 +1,18 @@
+{
+  "name": "tp4-devops-app",
+  "version": "1.0.0",
+  "description": "Node.js application for DevOps TP4",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest --coverage"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "prom-client": "^14.2.0"
+  },
+  "devDependencies": {
+    "jest": "^29.5.0",
+    "supertest": "^6.3.3"
+  }
+}
