@@ -96,6 +96,7 @@ pipeline {
             }
         }
 
+
         stage('Configuration & Deploy (Ansible)') {
             environment {
                 // Ansible and kubectl will use this kubeconfig connecting to Kind
@@ -103,6 +104,18 @@ pipeline {
             }
             steps {
                 dir('ansible') {
+                    // --- AJOUT : Correction réseau Docker-in-Docker ---
+                    sh """
+                    # 1. On demande à Docker de nous donner la vraie IP du cluster K8s
+                    KIND_IP=\$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' tp4-devops-cluster-control-plane)
+                    echo "L'IP interne du cluster Kind est : \$KIND_IP"
+                    
+                    # 2. On modifie le fichier kubeconfig pour remplacer localhost par cette vraie IP
+                    sed -i -E "s/127\\.0\\.0\\.1:[0-9]+/\$KIND_IP:6443/g" ../kubeconfig
+                    """
+                    // --------------------------------------------------
+
+                    // 3. On lance Ansible normalement
                     sh "ansible-playbook deploy.yml -e docker_image=${DOCKER_IMAGE} -e build_number=${BUILD_NUMBER}"
                 }
             }
