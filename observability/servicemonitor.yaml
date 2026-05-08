@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tp4-app-monitor
+  namespace: default
+  labels:
+    release: monitoring # Obligatoire pour correspondre à notre installation Helm (monitoring)
+spec:
+  selector:
+    matchLabels:
+      app: tp4-app
+  endpoints:
+  - port: http-web
+    path: /metrics
+    interval: 15s

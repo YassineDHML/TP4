@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tp4-alert-rules
+  namespace: default
+  labels:
+    release: monitoring
+spec:
+  groups:
+  - name: tp4.rules
+    rules:
+    - alert: ApplicationDown
+      expr: absent(up{job="tp4-service"})
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Instance Down: TP4 Application"
+        description: "L'application métier tp4-app ne répond plus depuis 2 minutes ou n'expose plus de métriques."
+    
+    - alert: HighMemoryUsage
+      expr: sum(container_memory_usage_bytes{pod=~"tp4-app-.*"}) > 500000000 # 500 MB
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Surconsommation Mémoire TP4 Application"
+        description: "L'application consomme plus de 500 Mo."
