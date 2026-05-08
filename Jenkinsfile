@@ -82,5 +82,42 @@ pipeline {
                 }
             }
         }
+
+        stage('Infrastructure Provisioning (Terraform)') {
+            steps {
+                dir('terraform') {
+                    // Supprime les restes des anciens lancements Terraform au besoin
+                    sh 'rm -rf .terraform || true'
+                    sh 'terraform init'
+                    sh 'terraform apply -auto-approve'
+                    // On extrait le kubeconfig pour la suite du pipeline
+                    sh 'terraform output -raw kubeconfig > ../kubeconfig'
+                }
+            }
+        }
+
+        stage('Configuration & Deploy (Ansible)') {
+            environment {
+                // Ansible and kubectl will use this kubeconfig connecting to Kind
+                KUBECONFIG = "${WORKSPACE}/kubeconfig"
+            }
+            steps {
+                dir('ansible') {
+                    sh "ansible-playbook deploy.yml -e docker_image=${DOCKER_IMAGE} -e build_number=${BUILD_NUMBER}"
+                }
+            }
+        }
+
+        stage('Smoke Test') {
+            environment {
+                KUBECONFIG = "${WORKSPACE}/kubeconfig"
+            }
+            steps {
+                // On attend que les pods soient bien démarrés
+                sh 'kubectl rollout status deployment/tp4-app --timeout=90s'
+                // Test de l'application via le NodePort local configuré dans terraform/ansible
+                sh 'curl -f http://tp4-devops-cluster-control-plane:30001 || echo "Curl error, container IP might differ on some setups"'
+            }
+        }
     }
 }

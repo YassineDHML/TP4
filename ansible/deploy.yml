@@ -1,0 +1,18 @@
+---
+- name: Deploy Application to Kubernetes
+  hosts: localhost
+  connection: local
+  vars:
+    docker_image: "yassinedhml/tp4-devops-app"
+    build_number: "latest"
+  
+  tasks:
+    - name: Create Kubernetes Deployment
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('template', 'templates/deployment.yaml.j2') }}"
+
+    - name: Create Kubernetes Service
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('template', 'templates/service.yaml.j2') }}"
