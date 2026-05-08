@@ -15,7 +15,7 @@ resource "kind_cluster" "default" {
 
   kind_config {
     kind = "Cluster"
-    apiVersion = "kind.x-k8s.io/v1alpha4"
+    api_version = "kind.x-k8s.io/v1alpha4"
 
     node {
       role = "control-plane"
