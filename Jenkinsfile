@@ -61,6 +61,8 @@ pipeline {
             }
         }
 
+
+        //delivery
         stage('Docker Build') {
             steps {
                 sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} -f Dockerfile ."
@@ -87,6 +89,9 @@ pipeline {
             }
         }
 
+
+        //deployment
+        // Terraform va créer un cluster Kubernetes local avec Kind, puis Ansible va déployer l'application dessus en utilisant l'image Docker que nous avons poussée
         stage('Infrastructure Provisioning (Terraform)') {
             steps {
                 dir('terraform') {
@@ -123,6 +128,7 @@ pipeline {
 
 
                     // Maintenant Ansible peut parler au cluster correctement
+                    // ansible va lire le kubeconfig et déployer l'application en utilisant l'image Docker que nous avons poussée
                     // 3. On lance Ansible normalement
                     sh "ansible-playbook deploy.yml -e docker_image=${DOCKER_IMAGE} -e build_number=${BUILD_NUMBER}"
                 }
