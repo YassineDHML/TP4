@@ -1,29 +1,30 @@
 pipeline {
-    agent any
+    agent any       // "exécute ce pipeline sur n'importe quelle machine disponible"
 
-    environment {
-        // ID de l'image (à adapter si besoin)
+    environment {   // variables globales réutilisables partout
+        // le nom de l'image sur DockerHub
         DOCKER_IMAGE = 'yassinedhml/tp4-devops-app'
-        // Identifiant du Credential stocké dans Jenkins
+        // l'ID du mot de passe stocké dans Jenkins
         DOCKER_CREDS_ID = 'dockerhub-credentials'
     }
 
-    tools {
+    tools {     // outils à installer automatiquement
+        // Jenkins installe Node.js automatiquement avant de commencer
         // Must match the name configured in Jenkins > Global Tool Configuration
         nodejs 'NodeJS' 
     }
 
-    stages {
+    stages {    // la liste des étapes dans l'ordre
         stage('Checkout') {
             steps {
-                checkout scm
+                checkout scm            // "va chercher le code depuis Git"
             }
         }
 
         stage('Build / Install') {
             steps {
-                dir('app') {
-                    sh 'npm install'
+                dir('app') {            // "entre dans le dossier app/"
+                    sh 'npm install'    // installe les dépendances Node.js (lit package.json)
                 }
             }
         }
@@ -31,26 +32,29 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 dir('app') {
-                    sh 'npm test'
+                    sh 'npm test'       // lance Jest, qui exécute app/tests/app.test.js
                 }
             }
         }
 
         stage('Static Analysis') {
             environment {
+                // trouve où est installé SonarScanner
                 // Must match the name configured in Jenkins > Global Tool Configuration
                 SCANNER_HOME = tool 'SonarScanner' 
             }
             steps {
-                withSonarQubeEnv('SonarQube') { // Must match server name in Jenkins settings
-                    sh "${SCANNER_HOME}/bin/sonar-scanner"
+                // Must match server name in Jenkins settings 
+                withSonarQubeEnv('SonarQube') {                 // injecte l'URL et le token du serveur SonarQube
+                    sh "${SCANNER_HOME}/bin/sonar-scanner"      // lance l'analyse du code
+
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 1, unit: 'HOURS') {
+                timeout(time: 1, unit: 'HOURS') {           // attend max 1h la réponse de SonarQube
                     // Fail the pipeline if SonarQube quality gate fails
                     waitForQualityGate abortPipeline: true
                 }
@@ -86,10 +90,9 @@ pipeline {
         stage('Infrastructure Provisioning (Terraform)') {
             steps {
                 dir('terraform') {
-                    // Supprime les restes des anciens lancements Terraform au besoin
-                    sh 'rm -rf .terraform || true'
-                    sh 'terraform init'
-                    sh 'terraform apply -auto-approve'
+                    sh 'rm -rf .terraform || true'              // nettoie les restes d'un ancien run
+                    sh 'terraform init'                         // télécharge le provider Kind
+                    sh 'terraform apply -auto-approve'          // crée le cluster K8s sans confirmation
                     // On extrait le kubeconfig pour la suite du pipeline
                     sh 'terraform output -raw kubeconfig > ../kubeconfig'
                 }
@@ -99,13 +102,16 @@ pipeline {
 
         stage('Configuration & Deploy (Ansible)') {
             environment {
-                // Ansible and kubectl will use this kubeconfig connecting to Kind
-                KUBECONFIG = "${WORKSPACE}/kubeconfig"
+                KUBECONFIG = "${WORKSPACE}/kubeconfig"      // dit à kubectl/Ansible quel cluster utiliser
             }
             steps {
                 dir('ansible') {
                     // --- AJOUT : Correction réseau Docker-in-Docker ---
                     sh """
+
+                    # Problème : Terraform génère un kubeconfig pointant vers 127.0.0.1
+                    # Mais Jenkins est dans un conteneur Docker, donc 127.0.0.1 ≠ le cluster Kind
+
                     # 1. On demande à Docker de nous donner la vraie IP du cluster K8s
                     KIND_IP=\$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' tp4-devops-cluster-control-plane)
                     echo "L'IP interne du cluster Kind est : \$KIND_IP"
@@ -115,6 +121,8 @@ pipeline {
                     """
                     // --------------------------------------------------
 
+
+                    // Maintenant Ansible peut parler au cluster correctement
                     // 3. On lance Ansible normalement
                     sh "ansible-playbook deploy.yml -e docker_image=${DOCKER_IMAGE} -e build_number=${BUILD_NUMBER}"
                 }
